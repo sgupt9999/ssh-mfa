@@ -24,4 +24,6 @@ echo "Please use this key on google authticator app to get a new verification co
 head -n 1 /home/$USER/.google_authenticator
 echo " Or use the following link to scan the bar code"
 sed -n '/2-3/p' /home/$USER/googlemfa
+rm -rf /home/$USER/googlemfa
+
 
