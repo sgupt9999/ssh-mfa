@@ -13,6 +13,7 @@
 
 
 PACKAGES="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm google-authenticator"
+MENUCHOICE="4"
 
 
 if (( $EUID != 0 ))
@@ -39,13 +40,13 @@ else
 fi
 
 
-if [ -f "/etc/pam.d/sshd" ]
+if [ -f "/etc/pam.d/sshd_backup" ]
 then
 	echo "Copying from the backup pam.d/sshd file"
 	cp -f /etc/pam.d/sshd_backup /etc/pam.d/sshd
 else
 	echo "Creating a backup pam.d/sshd file"
-	cp -f /etc/pam.d/sshd /etc/pam.d/sshd_config
+	cp -f /etc/pam.d/sshd /etc/pam.d/sshd_backup
 fi
 
 # Set up time based tokens, rewrite google authorization file w/o asking for confirmation,
@@ -54,11 +55,27 @@ fi
 #google-authenticator -t -f --disallow-reuse --window-size=3 --rate-limit=3 --rate-time=30 > /dev/null
 #google-authenticator -t -f --disallow-reuse --window-size=3 --rate-limit=3 --rate-time=30 > /home/$USER/googlemfa
 
-case $MENUCHOICE in:
-5)
+case $MENUCHOICE in
+4)
+	# Either Google authentication or password
 	sudo sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
 	echo "AuthenticationMethods keyboard-interactive" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+	line_number=`grep password-auth -n /etc/pam.d/sshd | head -n 1 | cut -d":" -f1`
+	#line_number=$(($line_number - 1))
+	# Add google authentication before the password authentication
+	sed -i "${line_number}i\auth      sufficient    pam_google_authenticator.so" /etc/pam.d/sshd;;
+5)
+	# Need both Google authentication and password
+	sudo sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
+	echo "AuthenticationMethods keyboard-interactive" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+	line_number=`grep password-auth -n /etc/pam.d/sshd | head -n 1 | cut -d":" -f1`
+	#line_number=$(($line_number - 1))
+	# Add google authentication before the password authentication
+	sed -i "${line_number}i\auth      requisite    pam_google_authenticator.so" /etc/pam.d/sshd
+esac
 
+sudo systemctl restart sshd
+exit 1
 
 echo "auth required pam_google_authenticator.so" | sudo tee -a /etc/pam.d/sshd > /dev/null
 sudo sed -i 's/auth .*substack/#&/g' /etc/pam.d/sshd > /dev/null
