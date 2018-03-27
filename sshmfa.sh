@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Automate setting up google-authenticator for MFA SSH login
+# Automate setting up different combinations of publick key, password and google-authenticator for MFA SSH login
 # You can choose from the following options
 # 1) public key and google authentication with password turned off
 # 2) public key and password with google authentication turned off
@@ -8,8 +8,10 @@
 # 4) public key and either google authentication or password
 # 5) google authentication and password with public key turned off
 # the public key should alrady be installed on this machine
+# SSHUSER is the user for which authentication is being set up
+# Any keys needed should be setup in the users home directory
 
-#MENUCHOICE="4"
+OPTION="2"
 SSHUSER="user"
 PACKAGES="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm google-authenticator"
 
@@ -19,6 +21,10 @@ then
 	echo "ERROR: You need to run as root"
 	exit 1
 fi
+
+
+rm -rf /home/$SSHUSER/.google_authenticator
+rm -rf /home/$SSHUSER/googlemfa
 
 
 echo -n "Installing packages....."
@@ -47,16 +53,14 @@ fi
 # Set up time based tokens, rewrite google authorization file w/o asking for confirmation,
 # restricts to one use of the same authentication token every 30 seconds, allows a time skew of 30 seconds
 # and 3 permitted codes and restricts to 3 login attempts every 30 seconds
-#google-authenticator -t -f --disallow-reuse --window-size=3 --rate-limit=3 --rate-time=30 > /dev/null
 google-authenticator -t -f -s /home/$SSHUSER/.google_authenticator --disallow-reuse --window-size=3 --rate-limit=3 --rate-time=30 > /home/$SSHUSER/googlemfa
 
 chown $SSHUSER:$SSHUSER /home/$SSHUSER/.google_authenticator
 chmod 400 /home/$SSHUSER/.google_authenticator
 
-MENUCHOICE="1"
-case $MENUCHOICE in
+case $OPTION in
 1)
-	# public key and google with password turned off
+	# public key and google authentication with password turned off
 	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
 	sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config
 	echo >> /etc/ssh/sshd_config
@@ -68,7 +72,7 @@ case $MENUCHOICE in
 	echo "auth required  pam_deny.so" >> /etc/pam.d/sshd_mfa
 	line_number=`grep password-auth -n /etc/pam.d/sshd | head -n 1 | cut -d":" -f1`
 	# Add google authentication before the password authentication
-	sed -i 's/auth .*substack/#&/g' /etc/pam.d/sshd > /dev/null
+	sed -i 's/auth .*substack/#&/' /etc/pam.d/sshd > /dev/null
 	sed -i "${line_number}i\auth      substack    sshd_mfa" /etc/pam.d/sshd;;
 2)
 	# public key and password
@@ -77,7 +81,7 @@ case $MENUCHOICE in
 	echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
 	echo "AuthenticationMethods publickey,password" >> /etc/ssh/sshd_config;;
 3)
-	# public key, Google authentication and password
+	# public key, google authentication and password
 	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
 	echo >> /etc/ssh/sshd_config
 	echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
@@ -87,7 +91,7 @@ case $MENUCHOICE in
 	# Add google authentication before the password authentication
 	sed -i "${line_number}i\auth      substack    sshd_mfa" /etc/pam.d/sshd;;
 4)
-	# Google authentication or password
+	# google authentication or password
 	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
 	echo >> /etc/ssh/sshd_config
 	echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
@@ -97,7 +101,7 @@ case $MENUCHOICE in
 	# Add google authentication before the password authentication
 	sed -i "${line_number}i\auth      include    sshd_mfa" /etc/pam.d/sshd;;
 5)
-	# Google authentication and password
+	# google authentication and password
 	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
 	echo >> /etc/ssh/sshd_config
 	echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
@@ -109,14 +113,11 @@ case $MENUCHOICE in
 	sed -i "${line_number}i\auth      substack    sshd_mfa" /etc/pam.d/sshd
 esac
 
-sudo systemctl restart sshd
-
-#sudo sed -i 's/auth .*substack/#&/g' /etc/pam.d/sshd > /dev/null
-#sudo sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config
-
+systemctl restart sshd
 
 echo "Please use this key on google authticator app to get a new verification code for ssh login"
 head -n 1 /home/$SSHUSER/.google_authenticator
+echo
 echo " Or use the following link to scan the bar code"
 sed -n 2p /home/$SSHUSER/googlemfa
 rm -rf /home/$SSHUSER/googlemfa
