@@ -10,7 +10,7 @@
 # the public key should alrady be installed on this machine
 
 #MENUCHOICE="4"
-SSHUSER="user2"
+SSHUSER="user"
 PACKAGES="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm google-authenticator"
 
 
@@ -53,8 +53,23 @@ google-authenticator -t -f -s /home/$SSHUSER/.google_authenticator --disallow-re
 chown $SSHUSER:$SSHUSER /home/$SSHUSER/.google_authenticator
 chmod 400 /home/$SSHUSER/.google_authenticator
 
-MENUCHOICE="3"
+MENUCHOICE="1"
 case $MENUCHOICE in
+1)
+	# public key and google with password turned off
+	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
+	sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config
+	echo >> /etc/ssh/sshd_config
+	echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
+	echo "AuthenticationMethods publickey,keyboard-interactive" >> /etc/ssh/sshd_config
+	echo "auth required pam_env.so" > /etc/pam.d/sshd_mfa
+	echo "auth sufficient pam_google_authenticator.so" >> /etc/pam.d/sshd_mfa
+	echo "auth requisite pam_succeed_if.so uid >= 1000 quiet_success" >> /etc/pam.d/sshd_mfa
+	echo "auth required  pam_deny.so" >> /etc/pam.d/sshd_mfa
+	line_number=`grep password-auth -n /etc/pam.d/sshd | head -n 1 | cut -d":" -f1`
+	# Add google authentication before the password authentication
+	sed -i 's/auth .*substack/#&/g' /etc/pam.d/sshd > /dev/null
+	sed -i "${line_number}i\auth      substack    sshd_mfa" /etc/pam.d/sshd;;
 2)
 	# public key and password
 	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
