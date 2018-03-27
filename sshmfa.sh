@@ -9,11 +9,9 @@
 # 5) google authentication and password with public key turned off
 # the public key should alrady be installed on this machine
 
-SSHUSER="user"
-
-
-PACKAGES="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm google-authenticator"
 #MENUCHOICE="4"
+SSHUSER="user2"
+PACKAGES="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm google-authenticator"
 
 
 if (( $EUID != 0 ))
@@ -27,9 +25,6 @@ echo -n "Installing packages....."
 yum install -y -q -e0 $PACKAGES
 echo "Done"
 	
-#sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm > /dev/null
-#sudo yum install -y google-authenticator > /dev/null 
-
 if [ -f "/etc/ssh/sshd_config_backup" ]
 then
 	echo "Copying from the backup sshd config file"
@@ -58,16 +53,18 @@ google-authenticator -t -f -s /home/$SSHUSER/.google_authenticator --disallow-re
 chown $SSHUSER:$SSHUSER /home/$SSHUSER/.google_authenticator
 chmod 400 /home/$SSHUSER/.google_authenticator
 
-MENUCHOICE="4"
+MENUCHOICE="3"
 case $MENUCHOICE in
 2)
 	# public key and password
-	sudo sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
+	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
+	echo >> /etc/ssh/sshd_config
 	echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
 	echo "AuthenticationMethods publickey,password" >> /etc/ssh/sshd_config;;
 3)
-	# public key, google and password
-	sudo sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
+	# public key, Google authentication and password
+	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
+	echo >> /etc/ssh/sshd_config
 	echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
 	echo "AuthenticationMethods publickey,keyboard-interactive" >> /etc/ssh/sshd_config
 	echo "auth required pam_google_authenticator.so" > /etc/pam.d/sshd_mfa
@@ -75,7 +72,7 @@ case $MENUCHOICE in
 	# Add google authentication before the password authentication
 	sed -i "${line_number}i\auth      substack    sshd_mfa" /etc/pam.d/sshd;;
 4)
-	# Either Google authentication or password
+	# Google authentication or password
 	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
 	echo >> /etc/ssh/sshd_config
 	echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
@@ -85,7 +82,7 @@ case $MENUCHOICE in
 	# Add google authentication before the password authentication
 	sed -i "${line_number}i\auth      include    sshd_mfa" /etc/pam.d/sshd;;
 5)
-	# Need both Google authentication and password
+	# Google authentication and password
 	sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g' /etc/ssh/sshd_config
 	echo >> /etc/ssh/sshd_config
 	echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
